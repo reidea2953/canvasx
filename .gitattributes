@@ -1,0 +1,15 @@
+# Normalize to LF in the repo; check out native on each platform.
+* text=auto eol=lf
+
+# Binary — never touch line endings or try to diff these.
+*.woff2 binary
+*.woff  binary
+*.ttf   binary
+*.otf   binary
+*.png   binary
+*.jpg   binary
+*.webp  binary
+*.ico   binary
+
+# Generated: collapse in PR diffs and don't count toward language stats.
+package-lock.json -diff linguist-generated
