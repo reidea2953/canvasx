@@ -42,6 +42,7 @@ export function CodeEditor({ element, dark, onCommit }: PluginEditorProps<CodeDa
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState(data.code);
 
   useLayoutEffect(() => {
@@ -117,13 +118,21 @@ export function CodeEditor({ element, dark, onCommit }: PluginEditorProps<CodeDa
     event.stopPropagation();
   };
 
-  /** The layers scroll as one, or the colours drift off the characters. */
+  /**
+   * Every layer scrolls as one, or the colours drift off the characters they
+   * belong to and the line numbers stop matching their lines.
+   *
+   * The gutter follows vertically only: it must not slide left when a long line
+   * scrolls the code sideways.
+   */
   const syncScroll = () => {
     const node = textareaRef.current;
-    const pre = preRef.current;
-    if (!node || !pre) return;
-    pre.scrollTop = node.scrollTop;
-    pre.scrollLeft = node.scrollLeft;
+    if (!node) return;
+    if (preRef.current) {
+      preRef.current.scrollTop = node.scrollTop;
+      preRef.current.scrollLeft = node.scrollLeft;
+    }
+    if (gutterRef.current) gutterRef.current.scrollTop = node.scrollTop;
   };
 
   const shared: React.CSSProperties = {
@@ -135,9 +144,13 @@ export function CodeEditor({ element, dark, onCommit }: PluginEditorProps<CodeDa
     tabSize: CODE_METRICS.tabSize,
     whiteSpace: 'pre',
     overflowWrap: 'normal',
-    // Padding is on the shared box, not on either layer, so both start at
-    // exactly the same origin.
-    padding: 0,
+    // Both layers carry the SAME inset. Putting it on the parent does nothing:
+    // an absolutely-positioned child's containing block is the parent's padding
+    // box, so inset:0 fills it and the padding is ignored.
+    paddingLeft: CODE_METRICS.paddingX,
+    paddingRight: CODE_METRICS.paddingX,
+    paddingTop: 0,
+    paddingBottom: 0,
   };
 
   return (
@@ -156,6 +169,7 @@ export function CodeEditor({ element, dark, onCommit }: PluginEditorProps<CodeDa
     >
       {data.showLineNumbers && (
         <div
+          ref={gutterRef}
           className="code-gutter"
           aria-hidden="true"
           style={{
@@ -163,6 +177,7 @@ export function CodeEditor({ element, dark, onCommit }: PluginEditorProps<CodeDa
             width: CODE_METRICS.gutterWidth,
             color: palette.gutter,
             paddingLeft: CODE_METRICS.paddingX,
+            paddingRight: 0,
           }}
         >
           {lines.map((_, index) => (
@@ -171,7 +186,7 @@ export function CodeEditor({ element, dark, onCommit }: PluginEditorProps<CodeDa
         </div>
       )}
 
-      <div className="code-scroll" style={{ paddingLeft: CODE_METRICS.paddingX }}>
+      <div className="code-scroll">
         {/* What you see. */}
         <pre
           ref={preRef}
