@@ -202,7 +202,7 @@ function renderStatic(layer: Layer): number {
     // is what produced doubled, offset glyphs while typing.
     if (element.id === state.editingTextElementId) continue;
     if (!boundsIntersect(getElementBounds(element), cullBounds)) continue;
-    drawElement(element, layer);
+    drawElement(element, layer, { compensateInvert: state.theme === 'dark' });
     visible++;
   }
   return visible;
@@ -213,6 +213,16 @@ const SNAP_COLOR = '#fa5252';
 const BINDING_COLOR = '#4dabf7';
 const LINEAR_POINT_RADIUS = 5;
 
+/**
+ * MUST stay byte-identical to the `filter` on `.canvas-stack[data-theme='dark']
+ * .layer` in index.css.
+ *
+ * The two are applied one after the other and rely on cancelling exactly (see
+ * drawImage). If they ever drift apart, photos in dark mode quietly go wrong
+ * again — there is no error, just a bad-looking image.
+ */
+export const DARK_MODE_FILTER = 'invert(100%) hue-rotate(180deg)';
+
 function renderInteractive(layer: Layer, now: number): void {
   assertInFrame();
   layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -221,15 +231,17 @@ function renderInteractive(layer: Layer, now: number): void {
 
   const state = getAppState();
   const interaction = getInteraction();
+  // This layer carries the same CSS invert as the static one, so anything drawn
+  // here needs the same compensation.
+  const draw = { compensateInvert: state.theme === 'dark' };
 
   // Elements mid-gesture live here until release, so the static layer and its
   // thousands of cached drawables stay untouched during the gesture.
   if (interaction.kind === 'drawing' || interaction.kind === 'drawingLinear') {
-    drawElement(interaction.element, layer);
+    drawElement(interaction.element, layer, draw);
   }
   if (interaction.kind === 'freedrawing') {
-    // isInProgress=true: the stroke has not finished tapering yet.
-    drawElement(interaction.element, layer, true);
+    drawElement(interaction.element, layer, { ...draw, isInProgress: true });
   }
 
   // Provisional erases, faded, standing in for what renderStatic skipped.
@@ -237,12 +249,12 @@ function renderInteractive(layer: Layer, now: number): void {
     layer.ctx.save();
     layer.ctx.globalAlpha = 0.2;
     for (const element of scene.getNonDeleted()) {
-      if (interaction.pending.has(element.id)) drawElement(element, layer);
+      if (interaction.pending.has(element.id)) drawElement(element, layer, draw);
     }
     layer.ctx.restore();
   }
   if (interaction.kind === 'multiPoint') {
-    drawElement(interaction.element, layer);
+    drawElement(interaction.element, layer, draw);
     drawLinearPointHandles(layer.ctx, interaction.element, state.zoom);
   }
 
@@ -505,11 +517,24 @@ function drawSnapGuides(
 export function renderElementsTo(layer: Layer, elements: readonly ExcaliElement[]): void {
   for (const element of elements) {
     if (element.isDeleted) continue;
+    // No compensateInvert, deliberately and regardless of theme: an export
+    // carries no CSS filter to cancel it, so compensating here would ship
+    // genuinely inverted photos. Exports are always light.
     drawElement(element, layer);
   }
 }
 
-function drawElement(element: ExcaliElement, layer: Layer, isInProgress = false): void {
+interface DrawOptions {
+  /** The stroke has not finished tapering yet; only freedraw cares. */
+  isInProgress?: boolean;
+  /**
+   * True when this canvas carries the dark-mode CSS invert. Screen layers do;
+   * export layers never do. See drawImage.
+   */
+  compensateInvert?: boolean;
+}
+
+function drawElement(element: ExcaliElement, layer: Layer, options: DrawOptions = {}): void {
   // A zero-size shape has nothing to draw; a points-based element with real
   // points can still be zero-height (a horizontal line), so it is exempt.
   if (!hasPoints(element) && element.width === 0 && element.height === 0) return;
@@ -529,11 +554,11 @@ function drawElement(element: ExcaliElement, layer: Layer, isInProgress = false)
   if (isFreedrawElement(element)) {
     // The outline is a closed polygon: fill it, never stroke it.
     ctx.fillStyle = element.strokeColor;
-    ctx.fill(getFreedrawPath(element, !isInProgress));
+    ctx.fill(getFreedrawPath(element, !options.isInProgress));
   } else if (isTextElement(element)) {
     drawText(element, ctx);
   } else if (isImageElement(element)) {
-    drawImage(element, ctx);
+    drawImage(element, ctx, options.compensateInvert === true);
   } else {
     for (const drawable of getShape(element)) layer.rc.draw(drawable);
   }
@@ -541,11 +566,17 @@ function drawElement(element: ExcaliElement, layer: Layer, isInProgress = false)
   ctx.restore();
 }
 
-function drawImage(element: ImageElement, ctx: CanvasRenderingContext2D): void {
+function drawImage(
+  element: ImageElement,
+  ctx: CanvasRenderingContext2D,
+  compensateInvert: boolean,
+): void {
   const bitmap = getBitmap(element.fileId);
 
   if (!bitmap) {
     // Placeholder while the bitmap decodes, so layout does not jump on arrival.
+    // Deliberately NOT compensated: it is chrome, and should invert with the
+    // theme like every other outline does.
     ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
     ctx.fillRect(0, 0, element.width, element.height);
     ctx.strokeStyle = '#adb5bd';
@@ -553,6 +584,25 @@ function drawImage(element: ImageElement, ctx: CanvasRenderingContext2D): void {
     ctx.strokeRect(0, 0, element.width, element.height);
     return;
   }
+
+  /**
+   * Dark mode inverts the whole canvas in CSS. That is right for line art —
+   * dark strokes on white become light strokes on black — but a photograph has
+   * no such symmetry and comes out a washed-out negative.
+   *
+   * So the photo is pre-inverted with the SAME filter, which the CSS one then
+   * cancels, leaving it exactly as authored. That cancellation is exact, not a
+   * fudge: with I(x) = 1-x and H the hue-rotate matrix, F(x) = H(1) - H(x), so
+   * F(F(x)) = H(1) - H²(1) + H²(x). H² is hue-rotate(360°) = identity and
+   * H(1) = 1 (rotation leaves white alone), so F(F(x)) = x.
+   *
+   * Only for canvases the CSS filter actually covers — never for export, which
+   * has no filter and would end up with genuinely inverted photos.
+   *
+   * ctx.filter is part of the canvas state, so drawElement's save/restore
+   * already resets it.
+   */
+  if (compensateInvert) ctx.filter = DARK_MODE_FILTER;
 
   // Negative scale flips about the centre; drawImage cannot take a negative size.
   const [scaleX, scaleY] = element.scale;

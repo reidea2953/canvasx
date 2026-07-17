@@ -132,6 +132,10 @@ body,
  *
  * invert(100%), not 93%: a white canvas has to land on true #000000, and 93%
  * would leave it a washed grey.
+ *
+ * KEEP IN SYNC with DARK_MODE_FILTER in src/scene/render.ts. Photos are drawn
+ * pre-inverted with that exact string so this one cancels it and leaves them as
+ * authored; if the two drift apart, images quietly turn into negatives again.
  */
 .canvas-stack[data-theme='dark'] .layer {
   filter: invert(100%) hue-rotate(180deg);

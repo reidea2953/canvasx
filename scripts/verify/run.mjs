@@ -25,6 +25,7 @@ const CHECKS = [
   ['merge', 'collab merge converges regardless of arrival order'],
   ['selectbox', 'selection box hit test is correct when rotated'],
   ['search', 'canvas search finds the right things, fast'],
+  ['darkfilter', 'dark-mode invert stays self-inverse and in sync'],
 ];
 
 const outDir = mkdtempSync(join(tmpdir(), 'verify-'));
