@@ -1,6 +1,6 @@
 # CanvasX
 
-[![CI](https://github.com/Patni05/handdrawn-whiteboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Patni05/handdrawn-whiteboard/actions/workflows/ci.yml)
+[![CI](https://github.com/Patni05/canvasx/actions/workflows/ci.yml/badge.svg)](https://github.com/Patni05/canvasx/actions/workflows/ci.yml)
 
 An infinite canvas for sketching, diagramming, notes and code, with a hand-drawn aesthetic: shapes, arrows that bind to
 them, freehand drawing, text with real handwriting fonts, images, a laser pointer,
@@ -34,6 +34,11 @@ npm run build        # typecheck + production build
 | `a` `5` | Arrow | | `h` | Hand (pan) |
 | `l` `6` | Line | | `q` | Keep tool active |
 | `p` `7` | Draw (freehand) | | | |
+
+The **+** button opens Insert: sticky notes, callouts, code blocks, tables,
+dividers and eight flowchart shapes. It is searchable — type "if" for the
+decision diamond. Everything in it comes from the plugin registry, so the menu
+never learns what an element type is.
 
 `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `Ctrl+D` duplicate · `Ctrl+G` / `Ctrl+Shift+G`
 group/ungroup · `Ctrl+A` select all · `Ctrl+C/V/X` clipboard · `Ctrl+[` / `Ctrl+]`
@@ -136,6 +141,35 @@ are colour bitmaps the OS renders; CSS cannot recolour them, so they turn to mud
 dark panel and no filter fixes it. Drawn as paths instead, an icon is exactly as visible
 as the text beside it and inverts with the theme for free.
 
+**One open element type is the extensibility seam**
+([plugins/types.ts](src/plugins/types.ts)). Adding an element type used to mean
+editing fifteen files. `CustomElement` carries a plugin id and an opaque `data`
+bag, and shares x/y/width/height/angle with everything else — so move, resize,
+rotate, z-order, group, delete, undo, snapping, export and collaboration all work
+for a plugin element without the plugin doing anything. `data` is opaque BY
+DESIGN: the moment the core reads a field out of it, that field stops belonging
+to the plugin and this stops being extensible. A check registers an element type
+the core has never heard of and greps six core files to prove none names a
+plugin.
+
+**A textarea can only render one colour** ([CodeEditor.tsx](src/plugins/builtin/code/CodeEditor.tsx)).
+That is why the code block puts a transparent textarea over a coloured `<pre>`,
+both driven by the same tokenizer as the canvas — so the editor, the highlight
+layer and the committed render cannot disagree. CodeMirror was considered and
+declined: a code block here is a canvas object and must render to canvas for
+export, rotation and zoom, which CodeMirror cannot do — so the canvas would still
+need this tokenizer, leaving two implementations that must agree.
+
+**An editor must save however it goes away**
+([PluginTextEditor.tsx](src/ui/PluginTextEditor.tsx)). Clicking blank canvas
+clears the editing state and unmounts the editor, and a detached node never fires
+focusout — so `onBlur` alone silently discarded everything typed. But StrictMode
+double-invokes effects in development, so a cleanup that commits unconditionally
+fires the instant the editor opens. The cleanup therefore distinguishes a real
+teardown (the app has already moved on) from React pretending. Both halves of
+that are covered by [`scripts/verify/teardown.ts`](scripts/verify), because I got
+each of them wrong once.
+
 **Collaboration needs no server authority** ([sync.ts](src/collab/sync.ts)). Higher
 `version` wins; on a tie, lower `versionNonce` wins. Both peers run the identical
 comparison and converge on the same answer with no round trip. The relay
@@ -179,14 +213,25 @@ modules, asserting properties of the maths rather than of a fixture.
 | Merge rule converges regardless of arrival order | 0 divergent of 200,000 pairs; 0 order-dependent of 20,000 sets |
 | Selection box hit test is correct when rotated | 0 errors either way over 100,000 cases |
 | Search finds the right things, fast | correctness + `1.6ms` per keystroke over 10,000 elements |
+| Dark-mode invert stays self-inverse and in sync | CSS and TS byte-identical; export never compensates |
+| A new element type needs zero core changes | unknown type works end to end; 6 core files free of plugin names |
+| Code tokenizes correctly, fast enough per keystroke | 20 cases across 8 languages; `1.4ms` for 300 lines |
+| An editor tells a real unmount from StrictMode | both shipped bugs reproduced by mutation |
 
-Two of these caught real bugs rather than merely confirming what was already true:
+Several caught real bugs rather than merely confirming what was already true:
 
 - **Binding**: two shapes close enough that the outline hit sat nearer than the gap sent
   the arrow tip *past* its reference point, drawing the arrow backwards. The pull-back is
   now clamped.
 - **Selection**: a transparent shape dragged from its middle missed the outline hit-test,
   read as a click on empty canvas, and silently dropped the selection.
+- **Plugin hit-testing**: several plugins returned an unconditional `true` on the
+  assumption the core had already checked their bounding box. It had not — so every
+  click anywhere on the canvas "hit" them and the selection could never clear.
+
+Where a check guards a coupling rather than a calculation, it is mutation-tested: the
+bug is put back to confirm the check fails, and fails by name. A check that has never
+failed is not yet a check.
 
 They live in [`scripts/verify/`](scripts/verify) and run in CI on every push.
 
