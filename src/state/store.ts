@@ -35,6 +35,8 @@ export interface AppState {
   /** Set when a linear element's individual points are being edited. */
   editingLinearElementId: string | null;
   editingTextElementId: string | null;
+  /** Set when a plugin element's text is being edited. See PluginTextEditor. */
+  editingPluginElementId: string | null;
 
   // Style applied to the next created element
   currentItemStrokeColor: string;
@@ -72,6 +74,7 @@ const initialState: AppState = {
   editingGroupId: null,
   editingLinearElementId: null,
   editingTextElementId: null,
+  editingPluginElementId: null,
 
   currentItemStrokeColor: '#1e1e1e',
   currentItemBackgroundColor: 'transparent',

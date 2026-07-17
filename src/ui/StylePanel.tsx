@@ -1,13 +1,16 @@
 import { useSyncExternalStore } from 'react';
 import {
+  applyPluginData,
   applyStyleToSelected,
   applyTextStyleTo,
   getSelectedElements,
   type TextStylePatch,
 } from '../scene/actions';
+import { getPluginFor } from '../plugins/registry';
 import { scene } from '../scene/Scene';
 import { getBoundTextElement } from '../element/container';
 import {
+  isCustomElement,
   isLinearElement,
   isLinearType,
   isShapeType,
@@ -127,6 +130,42 @@ export function StylePanel() {
   const showForTool =
     isShapeType(activeTool) || isLinearType(activeTool) || activeTool === 'text' || activeTool === 'freedraw';
   if (!showForTool && selected.length === 0) return null;
+
+  /**
+   * A single selected plugin element shows its OWN controls instead of the
+   * generic ones — a sticky's colour swatches and a code block's language menu
+   * have nothing to do with stroke width.
+   *
+   * This panel never learns which plugins exist; it renders whatever component
+   * the plugin registered.
+   */
+  const solo = selected.length === 1 ? selected[0] : null;
+  if (solo && isCustomElement(solo)) {
+    const plugin = getPluginFor(solo);
+    if (plugin?.StylePanel) {
+      const Panel = plugin.StylePanel;
+      return (
+        <aside className="style-panel island" aria-label={`${plugin.label} options`}>
+          <Panel
+            element={solo as never}
+            update={(patch) => applyPluginData(solo, patch as Record<string, unknown>)}
+          />
+          <fieldset className="style-group">
+            <legend>Opacity</legend>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={10}
+              value={solo.opacity}
+              onChange={(event) => applyStyleToSelected({ opacity: Number(event.target.value) })}
+              aria-label="Opacity"
+            />
+          </fieldset>
+        </aside>
+      );
+    }
+  }
 
   // Arrowheads only apply to arrows, so only offer them when arrows are in play.
   const showArrowheads =

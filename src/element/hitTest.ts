@@ -122,12 +122,25 @@ export function hitTestElement(
   if (isTextElement(element) || isImageElement(element)) return insideRect(point, element, 0);
 
   if (isCustomElement(element)) {
-    // The box is right for almost every plugin, so it is the default; a plugin
-    // with a non-rectangular silhouette can override.
+    /**
+     * The bounding box is tested HERE, first, and a plugin only ever refines
+     * inside it.
+     *
+     * This used to hand the point straight to plugin.hitTest, on the assumption
+     * that plugins would do their own bounds check. They did not — several
+     * returned an unconditional `true`, so every click anywhere on the canvas
+     * "hit" them, and the selection could never be cleared. The contract has to
+     * be enforced by the core, not documented and hoped for.
+     */
+    if (!insideRect(point, element, 0)) return false;
+
     const plugin = getPluginFor(element);
-    return plugin?.hitTest
-      ? plugin.hitTest(element as never, { x: point.x - element.x, y: point.y - element.y })
-      : insideRect(point, element, 0);
+    if (!plugin?.hitTest) return true;
+
+    return plugin.hitTest(element as never, {
+      x: point.x - element.x,
+      y: point.y - element.y,
+    });
   }
 
   const filled = element.backgroundColor !== 'transparent';

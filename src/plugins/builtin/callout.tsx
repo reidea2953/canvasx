@@ -1,7 +1,7 @@
 import { wrapText } from '../../element/text';
 import type { CustomElement } from '../../element/types';
 import { registerPlugin } from '../registry';
-import type { ElementPlugin, RenderContext } from '../types';
+import type { ElementPlugin, PluginStylePanelProps, RenderContext } from '../types';
 
 export type CalloutKind = 'info' | 'warning' | 'success' | 'error' | 'quote' | 'tip';
 
@@ -61,7 +61,43 @@ const callout: ElementPlugin<CalloutData> = {
 
   searchText: (element) => `${KINDS[element.data.kind]?.title ?? ''} ${element.data.text}`,
 
-  render(element: CustomElement<CalloutData>, { ctx }: RenderContext) {
+  StylePanel: ({ element, update }: PluginStylePanelProps<CalloutData>) => (
+    <fieldset className="style-group">
+      <legend>Kind</legend>
+      <div className="options options-wrap">
+        {(Object.keys(KINDS) as CalloutKind[]).map((kind) => (
+          <button
+            key={kind}
+            className={kind === element.data.kind ? 'option active' : 'option'}
+            onClick={() => update({ kind })}
+            aria-pressed={kind === element.data.kind}
+            title={KINDS[kind].title}
+            style={{ color: KINDS[kind].accent }}
+          >
+            {KINDS[kind].glyph}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  ),
+
+  editing: {
+    getText: (element) => element.data.text,
+    setText: (element, text) => ({ ...element.data, text }),
+    editorStyle: () => ({
+      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+      fontSize: FONT_SIZE,
+      lineHeight: LINE_HEIGHT,
+      color: '#1e1e1e',
+      // Left inset clears the accent bar and the icon gutter, so the overlay
+      // sits exactly where render() puts the body text.
+      padding: { top: PADDING + 20, right: PADDING, bottom: 6, left: BAR_WIDTH + GUTTER - 6 },
+      textAlign: 'left',
+      whiteSpace: 'pre-wrap',
+    }),
+  },
+
+  render(element: CustomElement<CalloutData>, { ctx, isEditing }: RenderContext) {
     const kind = KINDS[element.data.kind] ?? KINDS.info;
     const { width, height } = element;
     const radius = 6;
@@ -93,6 +129,9 @@ const callout: ElementPlugin<CalloutData> = {
 
     ctx.font = `600 12px ui-sans-serif, system-ui, sans-serif`;
     ctx.fillText(kind.title, BAR_WIDTH + GUTTER - 6, PADDING + 7);
+
+    // The overlay is already painting the body; the header and bar still draw.
+    if (isEditing) return;
 
     const body = element.data.text.trim();
     const textX = BAR_WIDTH + GUTTER - 6;

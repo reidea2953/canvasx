@@ -24,8 +24,10 @@ import { pointsAreDegenerate, scalePoints, setAbsolutePoints } from '../element/
 import { mutateElement } from '../element/mutate';
 import { resizeBox, scaleElementIntoBox, type TransformBox } from '../element/resize';
 import { measureTextElement } from '../element/text';
+import { getPluginFor } from '../plugins/registry';
 import {
   isContainerElement,
+  isCustomElement,
   isLinearElement,
   isLinearType,
   isShapeType,
@@ -659,7 +661,11 @@ export function attachInteractionHandlers(container: HTMLElement): () => void {
     if (!hit) {
       // Empty canvas is the ONE gesture that clears a selection.
       if (!event.shiftKey) {
-        setAppState({ selectedElementIds: {}, editingGroupId: null });
+        setAppState({
+          selectedElementIds: {},
+          editingGroupId: null,
+          editingPluginElementId: null,
+        });
       }
       activePointerId = event.pointerId;
       container.setPointerCapture(event.pointerId);
@@ -1149,6 +1155,15 @@ export function attachInteractionHandlers(container: HTMLElement): () => void {
     if (isTextElement(hit)) {
       setAppState({ editingTextElementId: hit.id });
       invalidateInteractive();
+      return;
+    }
+    // Any plugin that declares editable text gets an editor, without this file
+    // knowing which plugins those are.
+    if (isCustomElement(hit)) {
+      if (getPluginFor(hit)?.editing) {
+        setAppState({ editingPluginElementId: hit.id, selectedElementIds: { [hit.id]: true } });
+        invalidateInteractive();
+      }
       return;
     }
     // Double-clicking a shape writes a label inside it.

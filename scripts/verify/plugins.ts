@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hitTestElement } from '../../src/element/hitTest';
+import type { ExcaliElement } from '../../src/element/types';
 import { getPlugin, listPlugins, registerPlugin, searchPlugins } from '../../src/plugins/registry';
 import type { ElementPlugin } from '../../src/plugins/types';
 import '../../src/plugins/builtin';
@@ -90,6 +92,69 @@ try {
 }
 if (!threw) note('registering a duplicate plugin id did not throw');
 
+// ------------------------------ a plugin must never claim the whole canvas
+
+/**
+ * The regression this exists for.
+ *
+ * plugin.hitTest was being called with no bounds check, and several plugins
+ * returned an unconditional `true` on the assumption the core had already
+ * tested the box. It had not — so every click anywhere on the canvas "hit" the
+ * element, and the selection could never be cleared. The pointer was captured
+ * forever by the last diagram you placed.
+ *
+ * A plugin that claims everything is now impossible: the core tests the box
+ * first, and only refines inside it.
+ */
+const greedy: ElementPlugin<{ x: 1 }> = {
+  id: 'test-only-greedy',
+  label: 'Greedy',
+  category: 'data',
+  icon: null,
+  create: () => ({ x: 0, y: 0, width: 10, height: 10, data: { x: 1 } }),
+  render: () => {},
+  // The exact mistake: "the core checked the box, so anything here is a hit".
+  hitTest: () => true,
+};
+registerPlugin(greedy);
+
+const element = {
+  id: 'g1',
+  type: 'custom',
+  pluginId: 'test-only-greedy',
+  x: 0,
+  y: 0,
+  width: 100,
+  height: 100,
+  angle: 0,
+  isDeleted: false,
+  locked: false,
+  data: { x: 1 },
+  strokeColor: '#000',
+  backgroundColor: 'transparent',
+} as unknown as ExcaliElement;
+
+// Inside the box: the plugin's `true` is honoured.
+if (!hitTestElement(element, { x: 50, y: 50 }, 1)) {
+  note('a point inside a greedy plugin element did not register a hit');
+}
+
+// Far outside: the core must refuse regardless of what the plugin says. If this
+// fails, clicking empty canvas will not clear the selection.
+for (const point of [
+  { x: 5000, y: 5000 },
+  { x: -400, y: 20 },
+  { x: 50, y: 900 },
+  { x: 101, y: 101 },
+]) {
+  if (hitTestElement(element, point, 1)) {
+    note(
+      `point (${point.x},${point.y}) is outside the element but registered a hit — ` +
+        'a plugin is claiming the whole canvas and selection can never clear',
+    );
+  }
+}
+
 // ------------------------------------- the core must stay ignorant of plugins
 
 /**
@@ -108,7 +173,7 @@ const CORE_FILES = [
 
 const BUILTIN_IDS = listPlugins()
   .map((plugin) => plugin.id)
-  .filter((id) => id !== 'test-only-widget');
+  .filter((id) => !id.startsWith('test-only-'));
 
 for (const file of CORE_FILES) {
   const source = readFileSync(join(root, file), 'utf8');

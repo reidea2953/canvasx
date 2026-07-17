@@ -643,9 +643,23 @@ function drawCustom(
     return;
   }
 
+  const state = getAppState();
+  // 'own' means the element's colour IS the point (a sticky must stay yellow),
+  // so the canvas-wide invert is cancelled for it exactly as it is for photos,
+  // and the plugin picks its own palette from `dark` instead.
+  const ownsDarkMode = plugin.darkMode === 'own';
+  if (ownsDarkMode && dark) ctx.filter = DARK_MODE_FILTER;
+
   ctx.save();
   try {
-    plugin.render(element as never, { ctx, zoom: getAppState().zoom, dark });
+    plugin.render(element as never, {
+      ctx,
+      zoom: state.zoom,
+      // Always false under 'invert': the filter already handles the theme, and a
+      // plugin reacting to it as well would invert twice.
+      dark: ownsDarkMode && dark,
+      isEditing: state.editingPluginElementId === element.id,
+    });
   } catch (error) {
     // One bad plugin must not take down the frame — every other element on the
     // canvas still has to draw.

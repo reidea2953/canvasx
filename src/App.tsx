@@ -5,6 +5,7 @@ import { CanvasOptions } from './ui/CanvasOptions';
 import { ContextMenu } from './ui/ContextMenu';
 import { DevPanel } from './ui/DevPanel';
 import { MainMenu } from './ui/MainMenu';
+import { PluginTextEditor } from './ui/PluginTextEditor';
 import { PresenceBar } from './ui/PresenceBar';
 import { SearchPanel } from './ui/SearchPanel';
 import { ShareButton } from './ui/ShareButton';
@@ -23,6 +24,7 @@ export function App() {
     <div className="app" data-theme={theme}>
       <Canvas />
       <TextEditor />
+      <PluginTextEditor />
       <Toolbar />
       <MainMenu />
       <PresenceBar />

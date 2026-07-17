@@ -6,6 +6,7 @@ import { measureText } from '../element/text';
 import { elementsInGroup, makeGroupContiguous, newGroupId, outermostGroupId } from '../element/groups';
 import { mutateElement } from '../element/mutate';
 import {
+  isCustomElement,
   isLinearElement,
   type BaseElement,
   type ExcaliElement,
@@ -37,6 +38,8 @@ export function setActiveTool(tool: ToolType): void {
       selectedElementIds: {},
       editingGroupId: null,
       editingLinearElementId: null,
+      editingTextElementId: null,
+      editingPluginElementId: null,
     });
   }
   invalidateInteractive();
@@ -48,6 +51,7 @@ export function deselectAll(): void {
     selectedElementIds: {},
     editingGroupId: null,
     editingLinearElementId: null,
+    editingPluginElementId: null,
   });
   invalidateInteractive();
 }
@@ -81,7 +85,11 @@ export function deleteSelected(): void {
   // Drop references in both directions so nothing points at a tombstone.
   onElementsDeleted(selected);
 
-  setAppState({ selectedElementIds: {}, editingLinearElementId: null });
+  setAppState({
+    selectedElementIds: {},
+    editingLinearElementId: null,
+    editingPluginElementId: null,
+  });
   redraw();
   record();
 }
@@ -302,6 +310,20 @@ export function applyTextStyleTo(targets: readonly TextElement[], patch: TextSty
       mutateElement(text, { width: metrics.width, height: metrics.height });
     }
   }
+  redraw();
+  record();
+}
+
+/**
+ * Patch a plugin element's own data.
+ *
+ * The core does not know or care what is in the patch — it only owns
+ * versioning, redraw and the undo entry. That split is what keeps `data`
+ * genuinely opaque.
+ */
+export function applyPluginData(element: ExcaliElement, patch: Record<string, unknown>): void {
+  if (!isCustomElement(element)) return;
+  mutateElement(element, { data: { ...element.data, ...patch } });
   redraw();
   record();
 }

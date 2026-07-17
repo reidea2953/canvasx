@@ -195,13 +195,36 @@ function makeFlowPlugin(kind: FlowKind): ElementPlugin<FlowData> {
 
     searchText: (element) => `${meta.label} ${element.data.label}`,
 
-    hitTest(element, local) {
-      const polygon = HIT_POLYGONS[kind]?.(element.width, element.height);
-      if (!polygon) return true; // The core already checked the bounding box.
-      return pointInPolygon(local, polygon);
+    // A flowchart shape without a label is just geometry; every one of these
+    // wants a word in the middle.
+    editing: {
+      getText: (element) => element.data.label,
+      setText: (element, label) => ({ ...element.data, label }),
+      editorStyle: (element) => ({
+        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+        fontSize: 14,
+        lineHeight: 1.3,
+        color: element.strokeColor,
+        // A generous inset keeps the caret clear of slanted edges — the
+        // silhouette narrows toward the corners on a diamond.
+        padding: {
+          top: element.height * 0.3,
+          right: element.width * 0.16,
+          bottom: element.height * 0.3,
+          left: element.width * 0.16,
+        },
+        textAlign: 'center',
+        whiteSpace: 'pre-wrap',
+      }),
     },
 
-    render(element: CustomElement<FlowData>, { ctx }: RenderContext) {
+    // Only the slanted silhouettes need refining; the core's box test is
+    // already correct for the rest.
+    hitTest: HIT_POLYGONS[kind]
+      ? (element, local) => pointInPolygon(local, HIT_POLYGONS[kind]!(element.width, element.height))
+      : undefined,
+
+    render(element: CustomElement<FlowData>, { ctx, isEditing }: RenderContext) {
       const { width, height } = element;
 
       ctx.beginPath();
@@ -215,6 +238,9 @@ function makeFlowPlugin(kind: FlowKind): ElementPlugin<FlowData> {
       ctx.lineWidth = element.strokeWidth;
       ctx.lineJoin = 'round';
       ctx.stroke();
+
+      // The overlay is already painting the label; the silhouette still draws.
+      if (isEditing) return;
 
       const label = element.data.label.trim();
       if (label === '') return;
