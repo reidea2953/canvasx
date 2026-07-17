@@ -1,7 +1,26 @@
 import type { CustomElement } from '../../../element/types';
 import { registerPlugin } from '../../registry';
 import type { ElementPlugin, PluginStylePanelProps, RenderContext } from '../../types';
-import { LANGUAGES, tokenizeLine, type LanguageId, type TokenKind } from './highlight';
+import { CodeEditor } from './CodeEditor';
+import { LANGUAGES, tokenizeLine, type LanguageId } from './highlight';
+import { CODE_METRICS, THEMES } from './theme';
+
+const DEFAULT_WIDTH = 460;
+const DEFAULT_HEIGHT = 200;
+
+// Local aliases so the render code below reads the same as before; the values
+// are the shared ones, not copies.
+const {
+  font: FONT,
+  fontSize: FONT_SIZE,
+  lineHeight: LINE_HEIGHT,
+  paddingX: PADDING_X,
+  paddingY: PADDING_Y,
+  gutterWidth: GUTTER_WIDTH,
+  headerHeight: HEADER_HEIGHT,
+  radius: RADIUS,
+  tabSize: TAB_SPACES,
+} = CODE_METRICS;
 
 export interface CodeData {
   code: string;
@@ -10,62 +29,8 @@ export interface CodeData {
   theme: 'dark' | 'light';
 }
 
-const FONT = 'JetBrainsMono, ui-monospace, Consolas, monospace';
-const FONT_SIZE = 13;
-const LINE_HEIGHT = 1.55;
-const PADDING_Y = 12;
-const PADDING_X = 12;
-const GUTTER_WIDTH = 34;
-const RADIUS = 8;
-const HEADER_HEIGHT = 26;
-const TAB_SPACES = 2;
 
-const DEFAULT_WIDTH = 460;
-const DEFAULT_HEIGHT = 200;
 
-/**
- * Two palettes, authored rather than derived.
- *
- * The block owns its theme independently of the canvas: a code block is a
- * quotation of an editor, and an editor does not change colour because the page
- * around it did. That is why darkMode is 'own' below.
- */
-const THEMES: Record<'dark' | 'light', Record<TokenKind, string> & {
-  bg: string;
-  header: string;
-  border: string;
-  gutter: string;
-  chrome: string;
-}> = {
-  dark: {
-    bg: '#1e1e24',
-    header: '#26262e',
-    border: '#33333d',
-    gutter: '#5a5a68',
-    chrome: '#9a9aa8',
-    plain: '#e4e4ec',
-    keyword: '#c792ea',
-    string: '#a5e075',
-    comment: '#6b6b7b',
-    number: '#f78c6c',
-    punct: '#89ddff',
-    type: '#82aaff',
-  },
-  light: {
-    bg: '#fbfbfd',
-    header: '#f1f1f5',
-    border: '#e2e2ea',
-    gutter: '#adadbd',
-    chrome: '#6b6b7b',
-    plain: '#24242c',
-    keyword: '#8b39c4',
-    string: '#2a8438',
-    comment: '#9a9aa8',
-    number: '#c2521a',
-    punct: '#0b7285',
-    type: '#1a56b8',
-  },
-};
 
 const CodeIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -162,6 +127,9 @@ const codeblock: ElementPlugin<CodeData> = {
   // An editor does not change colour because the page around it did.
   darkMode: 'own',
   StylePanel: CodeStylePanel,
+  // A textarea can only render one colour, so the code block brings its own
+  // overlay: a coloured layer under a transparent input. See CodeEditor.
+  Editor: CodeEditor,
 
   create({ at }) {
     return {

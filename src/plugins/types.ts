@@ -2,6 +2,18 @@ import type { ComponentType, ReactNode } from 'react';
 import type { CustomElement } from '../element/types';
 import type { Point } from '../utils/geometry';
 
+export interface PluginEditorProps<Data> {
+  element: CustomElement<Data>;
+  part: string | null;
+  /** Current zoom, for sizing anything that must stay constant on screen. */
+  zoom: number;
+  dark: boolean;
+  /** Write back and close. */
+  onCommit: (data: Data) => void;
+  /** Write back and move to another part, without closing. */
+  onCommitAndMove: (data: Data, part: string | null) => void;
+}
+
 export interface PluginStylePanelProps<Data> {
   element: CustomElement<Data>;
   /**
@@ -212,6 +224,20 @@ export interface ElementPlugin<Data = Record<string, unknown>> {
    * Editable text. Omit for elements that have none — a divider is a divider.
    */
   editing?: PluginTextEditing<Data>;
+
+  /**
+   * A custom editing overlay, replacing the default textarea.
+   *
+   * The default is a real textarea, which buys IME, selection and clipboard for
+   * free — but a textarea is a form control and can only render ONE colour.
+   * Anything needing coloured text while typing (syntax highlighting) has to
+   * supply its own overlay.
+   *
+   * The core still positions and sizes the host and owns commit; the plugin
+   * only fills it. `editing` is still required — it is what tells the core the
+   * element is editable at all.
+   */
+  Editor?: ComponentType<PluginEditorProps<Data>>;
 
   /**
    * Controls shown in the style panel while one of these is selected. A plugin

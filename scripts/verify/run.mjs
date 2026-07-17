@@ -27,6 +27,7 @@ const CHECKS = [
   ['search', 'canvas search finds the right things, fast'],
   ['darkfilter', 'dark-mode invert stays self-inverse and in sync'],
   ['plugins', 'a new element type needs zero core changes'],
+  ['highlight', 'code tokenizes correctly, fast enough per keystroke'],
 ];
 
 const outDir = mkdtempSync(join(tmpdir(), 'verify-'));

@@ -200,6 +200,86 @@ body,
   border-radius: 4px;
 }
 
+/*
+ * Host for a plugin's own editing overlay. The core positions and sizes this;
+ * the plugin fills it.
+ */
+.plugin-editor-host {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------- code editor */
+
+.code-editor {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-gutter {
+  flex: none;
+  text-align: right;
+  padding-right: 10px;
+  user-select: none;
+  overflow: hidden;
+}
+
+.code-scroll {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * The two layers of the editor. They occupy the SAME box and must agree on
+ * every metric that affects glyph position — font, size, line-height, padding,
+ * tab-size, white-space. Any disagreement and the colours slide off the
+ * characters they belong to.
+ *
+ * .code-highlight is what you see; .code-input is what you type into, with
+ * transparent glyphs and a visible caret.
+ */
+.code-highlight,
+.code-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  /* Both must break lines identically — i.e. never. */
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.code-highlight {
+  pointer-events: none;
+  user-select: none;
+}
+
+.code-input {
+  /* Above the colours, so it takes the pointer and the caret. */
+  z-index: 1;
+}
+
+/* The highlight layer is scrolled programmatically to match the input. */
+.code-highlight::-webkit-scrollbar {
+  display: none;
+}
+
+.code-input::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.code-input::-webkit-scrollbar-thumb {
+  background: rgb(128 128 128 / 35%);
+  border-radius: 4px;
+}
+
 /* Plugin style panels reuse the panel's controls; only the select is new. */
 .plugin-select {
   width: 100%;

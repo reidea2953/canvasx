@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { mutateElement } from '../element/mutate';
 import { isCustomElement, type CustomElement } from '../element/types';
 import { getPluginFor } from '../plugins/registry';
@@ -11,15 +11,23 @@ import { setAppState, useAppState } from '../state/store';
 /**
  * Text editing for plugin elements.
  *
- * A real DOM textarea overlaid on the canvas, for the same reasons the built-in
+ * The default overlay is a real DOM textarea, for the same reasons the built-in
  * text editor uses one: IME, spellcheck, native selection, arrow keys,
- * word-jumps and clipboard, all for free. Everything element-specific comes from
- * the plugin's `editing` contract, so this works for a sticky, a code block and
- * a table cell alike, and knows what none of them are.
+ * word-jumps and clipboard, all for free.
+ *
+ * A textarea is a form control, though, and can only render ONE colour. A
+ * plugin needing coloured text while typing supplies its own overlay via
+ * `Editor` — see the code block.
  */
 export function PluginTextEditor() {
   const editingId = useAppState((state) => state.editingPluginElementId);
   const part = useAppState((state) => state.editingPluginPart);
+  /**
+   * Elements mutate in place, so `element` keeps its identity when its data
+   * changes and React would never re-render on its own. Without this, switching
+   * language while the editor is open leaves it tokenizing the old one.
+   */
+  useSyncExternalStore(scene.subscribe, scene.getRevision);
 
   const element = editingId ? scene.getById(editingId) : null;
   if (!element || !isCustomElement(element)) return null;
@@ -34,38 +42,133 @@ export function PluginTextEditor() {
    * AFTER paint, and the component sits at a fixed place in the tree, so
    * switching from one element to another rendered — and PAINTED — with the
    * previous element's text still in state before the effect corrected it. That
-   * is the flash of the old code block's content.
+   * was the flash of the old code block's content.
    *
-   * Keying by target forces React to unmount and remount, so the state cannot
+   * Keying by target forces React to unmount and remount, so state cannot
    * outlive the element it belonged to. Isolation is structural now, not
    * something a future effect has to remember to do.
    */
-  return (
-    <EditorInstance
-      key={`${element.id}::${part ?? ''}`}
-      element={element}
-      plugin={plugin}
-      part={part}
-    />
+  const key = `${element.id}::${part ?? ''}`;
+
+  // Two components rather than one with a branch: the choice decides which
+  // hooks run, and a conditional hook is a crash waiting for the first person
+  // to move between a plugin with a custom editor and one without.
+  return plugin.Editor ? (
+    <CustomEditorHost key={key} element={element} plugin={plugin} part={part} />
+  ) : (
+    <TextareaEditor key={key} element={element} plugin={plugin} part={part} />
   );
 }
 
-interface InstanceProps {
+interface EditorProps {
   element: CustomElement;
   plugin: ElementPlugin<never>;
   part: string | null;
 }
 
-function EditorInstance({ element, plugin, part }: InstanceProps) {
+/** Commit, and either close or move to the next part. */
+function useCommit(element: CustomElement) {
+  /** Guards the blur React fires while unmounting. */
+  const committed = useRef(false);
+
+  return (data: unknown, nextPart?: string | null) => {
+    if (committed.current) return;
+    committed.current = true;
+
+    mutateElement(element, { data: data as Record<string, unknown> });
+    setAppState(
+      nextPart !== undefined
+        ? { editingPluginPart: nextPart }
+        : {
+            editingPluginElementId: null,
+            editingPluginPart: null,
+            // Stay selected after editing, as Figma does.
+            selectedElementIds: { [element.id]: true },
+          },
+    );
+    scene.emit();
+    invalidateStatic();
+    invalidateInteractive();
+    record();
+  };
+}
+
+/** The static layer must stop — and later resume — drawing what the overlay paints. */
+function useStaticRepaint() {
+  useLayoutEffect(() => {
+    invalidateStatic();
+    return () => invalidateStatic();
+  }, []);
+}
+
+function partRect(plugin: ElementPlugin<never>, element: CustomElement, part: string | null) {
+  return (
+    plugin.editing!.getPartRect?.(element as never, part) ?? {
+      x: 0,
+      y: 0,
+      width: element.width,
+      height: element.height,
+    }
+  );
+}
+
+// ------------------------------------------------------- custom overlay
+
+/**
+ * The core positions and sizes the host and owns commit; the plugin fills it.
+ * That split keeps geometry and history in one place while letting an element
+ * render its own insides.
+ */
+function CustomEditorHost({ element, plugin, part }: EditorProps) {
   const scrollX = useAppState((state) => state.scrollX);
   const scrollY = useAppState((state) => state.scrollY);
   const zoom = useAppState((state) => state.zoom);
-  const theme = useAppState((state) => state.theme);
+  const dark = useAppState((state) => state.theme) === 'dark';
+
+  const finish = useCommit(element);
+  useStaticRepaint();
+
+  const rect = partRect(plugin, element, part);
+  const Editor = plugin.Editor!;
+
+  return (
+    <div
+      className="plugin-editor-host"
+      style={{
+        left: `${(element.x + rect.x + scrollX) * zoom}px`,
+        top: `${(element.y + rect.y + scrollY) * zoom}px`,
+        width: `${rect.width * zoom}px`,
+        height: `${rect.height * zoom}px`,
+        transform: element.angle ? `rotate(${element.angle}rad)` : undefined,
+        transformOrigin: 'center center',
+        opacity: element.opacity / 100,
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onWheel={(event) => event.stopPropagation()}
+    >
+      <Editor
+        element={element as never}
+        part={part}
+        zoom={zoom}
+        dark={dark}
+        onCommit={(data) => finish(data)}
+        onCommitAndMove={(data, next) => finish(data, next)}
+      />
+    </div>
+  );
+}
+
+// ------------------------------------------------------ default overlay
+
+function TextareaEditor({ element, plugin, part }: EditorProps) {
+  const scrollX = useAppState((state) => state.scrollX);
+  const scrollY = useAppState((state) => state.scrollY);
+  const zoom = useAppState((state) => state.zoom);
+  const dark = useAppState((state) => state.theme) === 'dark';
 
   const editing = plugin.editing!;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  /** Guards the blur React fires while unmounting. */
-  const committedRef = useRef(false);
+  const finish = useCommit(element);
 
   // Seeded once, on mount. Fresh mount per target, so this is never stale.
   const [value, setValue] = useState(() => editing.getText(element as never, part));
@@ -80,36 +183,11 @@ function EditorInstance({ element, plugin, part }: InstanceProps) {
     node.setSelectionRange(end, end);
   }, []);
 
-  // The static layer must repaint so the element stops — and later resumes —
-  // drawing the text the overlay is now painting.
-  useLayoutEffect(() => {
-    invalidateStatic();
-    return () => invalidateStatic();
-  }, []);
+  useStaticRepaint();
 
-  const dark = theme === 'dark';
   const style = editing.editorStyle(element as never, { dark, part });
-
-  const commit = (next?: { part: string | null }) => {
-    if (committedRef.current) return;
-    committedRef.current = true;
-
-    mutateElement(element, { data: editing.setText(element as never, value, part) });
-    setAppState(
-      next
-        ? { editingPluginPart: next.part }
-        : {
-            editingPluginElementId: null,
-            editingPluginPart: null,
-            // Stay selected after editing, as Figma does.
-            selectedElementIds: { [element.id]: true },
-          },
-    );
-    scene.emit();
-    invalidateStatic();
-    invalidateInteractive();
-    record();
-  };
+  const commit = (nextPart?: string | null) =>
+    finish(editing.setText(element as never, value, part), nextPart);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const node = event.currentTarget;
@@ -123,18 +201,24 @@ function EditorInstance({ element, plugin, part }: InstanceProps) {
     // Move between parts (table cells) rather than indenting.
     if (editing.nextPart && (event.key === 'Tab' || event.key === 'Enter')) {
       const direction =
-        event.key === 'Enter' ? (event.shiftKey ? 'up' : 'down') : event.shiftKey ? 'previous' : 'next';
+        event.key === 'Enter'
+          ? event.shiftKey
+            ? 'up'
+            : 'down'
+          : event.shiftKey
+            ? 'previous'
+            : 'next';
       const target = editing.nextPart(element as never, part, direction);
       if (target !== null) {
         event.preventDefault();
         event.stopPropagation();
-        commit({ part: target });
+        commit(target);
         return;
       }
     }
 
-    // Tab indents code rather than leaving the field — only where the plugin
-    // asked for it. For prose, Tab must remain the way out.
+    // Tab indents rather than leaving the field — only where the plugin asked.
+    // For prose, Tab must remain the way out.
     if (event.key === 'Tab' && editing.tabInsertsSpaces) {
       event.preventDefault();
       const spaces = ' '.repeat(editing.tabInsertsSpaces);
@@ -170,14 +254,7 @@ function EditorInstance({ element, plugin, part }: InstanceProps) {
     event.stopPropagation();
   };
 
-  // A part (table cell) has its own box within the element.
-  const rect = editing.getPartRect?.(element as never, part) ?? {
-    x: 0,
-    y: 0,
-    width: element.width,
-    height: element.height,
-  };
-
+  const rect = partRect(plugin, element, part);
   const left = (element.x + rect.x + style.padding.left + scrollX) * zoom;
   const top = (element.y + rect.y + style.padding.top + scrollY) * zoom;
   const width = (rect.width - style.padding.left - style.padding.right) * zoom;
@@ -185,7 +262,7 @@ function EditorInstance({ element, plugin, part }: InstanceProps) {
 
   /**
    * The overlay is a DOM node OUTSIDE .canvas-stack, so the dark-mode filter on
-   * .layer never reaches it. For a plugin the canvas inverts, the overlay has to
+   * .layer never reaches it. For a plugin the canvas inverts, the overlay must
    * be inverted too or its glyphs will not match the ones underneath — dark ink
    * on a dark wash, invisible until you click away. That looked like a typing
    * delay; it was text you could not see.
@@ -220,7 +297,6 @@ function EditorInstance({ element, plugin, part }: InstanceProps) {
         textAlign: style.textAlign,
         whiteSpace: style.whiteSpace,
         overflowWrap: style.whiteSpace === 'pre' ? 'normal' : 'break-word',
-        // Long code has to be reachable; prose grows its box instead.
         overflow: style.whiteSpace === 'pre' ? 'auto' : 'hidden',
         transform: element.angle ? `rotate(${element.angle}rad)` : undefined,
         transformOrigin: 'center center',
