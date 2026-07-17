@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Lets a broken main be re-checked without an empty commit.
+  workflow_dispatch:
+
+# A newer push to the same branch makes the in-flight run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `ci` not `install`: fails loudly if the lockfile and package.json drift.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The randomized property checks: resize anchoring, arrow binding
+      # convergence, PNG round-trip, collab merge determinism, selection hits.
+      - name: Verify invariants
+        run: npm run verify
+
+      - name: Build
+        run: npx vite build
+
+      - name: Check server starts
+        run: |
+          node server/index.js &
+          PID=$!
+          sleep 2
+          if kill -0 $PID 2>/dev/null; then
+            echo "Relay started."
+            kill $PID
+          else
+            echo "Relay failed to start."
+            exit 1
+          fi

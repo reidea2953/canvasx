@@ -8,6 +8,8 @@
     "server": "node server/index.js",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "verify": "node scripts/verify/run.mjs",
+    "check": "npm run typecheck && npm run verify && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

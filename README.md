@@ -101,7 +101,14 @@ fragment, which browsers never transmit.
 
 ## Verified
 
-Four properties were checked numerically rather than by eye:
+```bash
+npm run verify     # the property checks below
+npm run check      # typecheck + verify + build — run this before pushing
+```
+
+Most of this app can only be judged by eye. These five things can't be, so they are
+checked numerically instead — each runs thousands of randomized cases against the real
+modules, asserting properties of the maths rather than of a fixture.
 
 | Property | Result |
 |---|---|
@@ -109,10 +116,17 @@ Four properties were checked numerically rather than by eye:
 | Arrow binding converges and never loops | drift exactly `0.0`; 0/200 idle movements |
 | PNG round-trips its embedded scene | CRCs intact, payload byte-identical |
 | Merge rule converges regardless of arrival order | 0 divergent of 200,000 pairs; 0 order-dependent of 20,000 sets |
+| Selection box hit test is correct when rotated | 0 errors either way over 100,000 cases |
 
-The binding check found a real bug: two shapes close enough that the outline hit sat
-nearer than the gap sent the arrow tip *past* its reference point, rendering backwards.
-The pull-back is now clamped.
+Two of these caught real bugs rather than merely confirming what was already true:
+
+- **Binding**: two shapes close enough that the outline hit sat nearer than the gap sent
+  the arrow tip *past* its reference point, drawing the arrow backwards. The pull-back is
+  now clamped.
+- **Selection**: a transparent shape dragged from its middle missed the outline hit-test,
+  read as a click on empty canvas, and silently dropped the selection.
+
+They live in [`scripts/verify/`](scripts/verify) and run in CI on every push.
 
 ## Fonts
 
