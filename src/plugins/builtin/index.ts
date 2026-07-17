@@ -11,3 +11,4 @@ import './callout';
 import './code/codeblock';
 import './flowchart';
 import './divider';
+import './table/table';

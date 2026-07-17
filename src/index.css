@@ -884,6 +884,105 @@ input:focus-visible {
   color: var(--muted);
 }
 
+/* ------------------------------------------------------- insert dialog */
+
+.insert-dialog {
+  padding: 4px;
+}
+
+.dialog-title {
+  margin: 4px 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dialog-fields {
+  display: flex;
+  gap: 8px;
+  margin: 0 4px;
+}
+
+.dialog-fields label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.dialog-fields input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dialog-fields input:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+/* Reading two numbers is work; seeing the grid is not. */
+.dialog-preview {
+  display: grid;
+  gap: 2px;
+  margin: 12px 4px;
+  padding: 6px;
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+}
+
+.dialog-preview span {
+  aspect-ratio: 2 / 1;
+  border-radius: 2px;
+  background: var(--hover);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0 4px 4px;
+}
+
+.dialog-actions button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dialog-actions button:hover {
+  background: var(--hover);
+}
+
+.dialog-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.dialog-actions .primary:hover {
+  filter: brightness(1.1);
+}
+
+.panel-hint {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 /* -------------------------------------------------------------- search */
 
 .search {

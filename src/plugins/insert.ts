@@ -58,7 +58,11 @@ function materialize(pluginId: string, init: PluginElementInit): CustomElement {
  * Insert whatever a plugin makes, select it, and record one undo step —
  * regardless of how many elements it produced.
  */
-export function insertPluginElement(pluginId: string, context: InsertContext): void {
+export function insertPluginElement(
+  pluginId: string,
+  context: InsertContext,
+  seed?: Partial<Record<string, unknown>>,
+): void {
   const plugin = getPlugin(pluginId);
   if (!plugin) {
     console.error(`No plugin registered for "${pluginId}"`);
@@ -67,7 +71,9 @@ export function insertPluginElement(pluginId: string, context: InsertContext): v
 
   let inits: PluginElementInit[];
   try {
-    const created = plugin.create(context);
+    // `seed` is whatever the plugin's own InsertDialog confirmed — opaque here,
+    // exactly like `data`.
+    const created = plugin.create(context, seed as never);
     inits = Array.isArray(created) ? created : [created];
   } catch (error) {
     console.error(`Plugin "${pluginId}" failed to create an element`, error);

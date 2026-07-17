@@ -148,7 +148,9 @@ export function StylePanel() {
         <aside className="style-panel island" aria-label={`${plugin.label} options`}>
           <Panel
             element={solo as never}
-            update={(patch) => applyPluginData(solo, patch as Record<string, unknown>)}
+            update={(patch, geometry) =>
+              applyPluginData(solo, patch as Record<string, unknown>, geometry)
+            }
           />
           <fieldset className="style-group">
             <legend>Opacity</legend>

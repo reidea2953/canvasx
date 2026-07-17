@@ -14,6 +14,8 @@ export function InsertMenu() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  /** The plugin whose InsertDialog is up, if any. */
+  const [configuring, setConfiguring] = useState<ElementPlugin<never> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +43,7 @@ export function InsertMenu() {
   useEffect(() => {
     if (!open) {
       setQuery('');
+      setConfiguring(null);
       return;
     }
     inputRef.current?.focus();
@@ -52,7 +55,15 @@ export function InsertMenu() {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
+  /**
+   * A plugin that needs configuring shows its dialog first; everything else
+   * inserts immediately. The menu does not know which is which — it asks.
+   */
   const insert = (plugin: ElementPlugin<never>) => {
+    if (plugin.InsertDialog) {
+      setConfiguring(plugin);
+      return;
+    }
     insertPluginElement(plugin.id, viewportInsertContext());
     setOpen(false);
   };
@@ -98,7 +109,20 @@ export function InsertMenu() {
         <PlusIcon />
       </button>
 
-      {open && (
+      {open && configuring?.InsertDialog && (
+        <div className="insert-panel island">
+          <configuring.InsertDialog
+            onConfirm={(seed) => {
+              insertPluginElement(configuring.id, viewportInsertContext(), seed);
+              setConfiguring(null);
+              setOpen(false);
+            }}
+            onCancel={() => setConfiguring(null)}
+          />
+        </div>
+      )}
+
+      {open && !configuring && (
         <div className="insert-panel island" role="menu">
           <input
             ref={inputRef}

@@ -40,6 +40,7 @@ export function setActiveTool(tool: ToolType): void {
       editingLinearElementId: null,
       editingTextElementId: null,
       editingPluginElementId: null,
+      editingPluginPart: null,
     });
   }
   invalidateInteractive();
@@ -52,6 +53,7 @@ export function deselectAll(): void {
     editingGroupId: null,
     editingLinearElementId: null,
     editingPluginElementId: null,
+      editingPluginPart: null,
   });
   invalidateInteractive();
 }
@@ -89,6 +91,7 @@ export function deleteSelected(): void {
     selectedElementIds: {},
     editingLinearElementId: null,
     editingPluginElementId: null,
+      editingPluginPart: null,
   });
   redraw();
   record();
@@ -321,9 +324,19 @@ export function applyTextStyleTo(targets: readonly TextElement[], patch: TextSty
  * versioning, redraw and the undo entry. That split is what keeps `data`
  * genuinely opaque.
  */
-export function applyPluginData(element: ExcaliElement, patch: Record<string, unknown>): void {
+export function applyPluginData(
+  element: ExcaliElement,
+  patch: Record<string, unknown>,
+  geometry?: { width?: number; height?: number },
+): void {
   if (!isCustomElement(element)) return;
-  mutateElement(element, { data: { ...element.data, ...patch } });
+  // Geometry is the core's, so a plugin asks for it rather than smuggling
+  // width/height through the opaque data bag.
+  mutateElement(element, {
+    data: { ...element.data, ...patch },
+    ...(geometry?.width !== undefined ? { width: geometry.width } : {}),
+    ...(geometry?.height !== undefined ? { height: geometry.height } : {}),
+  });
   redraw();
   record();
 }

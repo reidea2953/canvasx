@@ -37,6 +37,11 @@ export interface AppState {
   editingTextElementId: string | null;
   /** Set when a plugin element's text is being edited. See PluginTextEditor. */
   editingPluginElementId: string | null;
+  /**
+   * Which sub-part of that element, for plugins that have them (a table cell).
+   * Opaque to the core — only the plugin knows what the string means.
+   */
+  editingPluginPart: string | null;
 
   // Style applied to the next created element
   currentItemStrokeColor: string;
@@ -75,6 +80,7 @@ const initialState: AppState = {
   editingLinearElementId: null,
   editingTextElementId: null,
   editingPluginElementId: null,
+  editingPluginPart: null,
 
   currentItemStrokeColor: '#1e1e1e',
   currentItemBackgroundColor: 'transparent',

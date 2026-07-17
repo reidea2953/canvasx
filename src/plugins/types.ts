@@ -4,8 +4,14 @@ import type { Point } from '../utils/geometry';
 
 export interface PluginStylePanelProps<Data> {
   element: CustomElement<Data>;
-  /** Patch the element's data; the core handles versioning, redraw and undo. */
-  update: (patch: Partial<Data>) => void;
+  /**
+   * Patch the element's data; the core handles versioning, redraw and undo.
+   *
+   * `geometry` is for edits that change the element's size — adding a table
+   * column has to widen the box, or every existing cell squashes to fit. The
+   * core owns x/y/width/height, so a plugin asks rather than reaching in.
+   */
+  update: (patch: Partial<Data>, geometry?: { width?: number; height?: number }) => void;
 }
 
 /**
@@ -54,6 +60,13 @@ export interface RenderContext {
    * doubled, offset text. Everything else (paper, borders, chrome) still draws.
    */
   isEditing: boolean;
+  /**
+   * WHICH part the editor has, for elements with sub-parts. A table skips just
+   * this one cell and draws the rest of the grid normally.
+   *
+   * Null when the whole element is being edited, or nothing is.
+   */
+  editingPart: string | null;
 }
 
 /**
@@ -63,21 +76,40 @@ export interface RenderContext {
  * selection, IME, arrow keys and clipboard — all from a DOM textarea overlaid on
  * the canvas, exactly as the built-in text element does.
  */
+export interface EditorStyleContext {
+  /**
+   * Dark theme is active.
+   *
+   * Return colours for THIS theme. The overlay is a DOM node outside the canvas,
+   * so the dark-mode filter does not reach it: for a plugin the canvas inverts,
+   * the core re-applies the same filter to the overlay, so returning light
+   * colours is correct. A plugin with `darkMode: 'own'` gets no filter and must
+   * return real dark-theme colours itself.
+   */
+  dark: boolean;
+  /** Which sub-part is being edited, for elements that have them. */
+  part: string | null;
+}
+
 export interface PluginTextEditing<Data> {
-  getText(element: CustomElement<Data>): string;
+  /** `part` is null for elements that are a single field. */
+  getText(element: CustomElement<Data>, part: string | null): string;
   /** Return the NEW data. Never mutate — the core owns versioning. */
-  setText(element: CustomElement<Data>, text: string): Data;
+  setText(element: CustomElement<Data>, text: string, part: string | null): Data;
 
   /**
    * How the overlay must look. These have to match what render() draws or the
    * text visibly jumps the moment editing ends.
    */
-  editorStyle(element: CustomElement<Data>): {
+  editorStyle(
+    element: CustomElement<Data>,
+    context: EditorStyleContext,
+  ): {
     fontFamily: string;
     fontSize: number;
     lineHeight: number;
     color: string;
-    /** Inset from the element's box, in scene units. */
+    /** Inset from the part's box, in scene units. */
     padding: { top: number; right: number; bottom: number; left: number };
     textAlign: 'left' | 'center' | 'right';
     fontWeight?: number;
@@ -86,6 +118,29 @@ export interface PluginTextEditing<Data> {
     /** 'pre' never wraps (code); 'pre-wrap' wraps at the box (prose). */
     whiteSpace: 'pre' | 'pre-wrap';
   };
+
+  // ---- sub-parts, for elements that are not one field
+  //
+  // A sticky is one text box and ignores all of this. A table is a grid of
+  // them, and identifies each cell with an opaque string only it understands.
+
+  /** Which part is at this element-local point? Null means "not a part". */
+  getPartAt?(element: CustomElement<Data>, local: Point): string | null;
+  /** The part's box, in element-local coordinates. */
+  getPartRect?(
+    element: CustomElement<Data>,
+    part: string | null,
+  ): { x: number; y: number; width: number; height: number };
+  /**
+   * Where Tab / Shift+Tab / Enter should go from here. Null ends editing.
+   * Enabling this takes Tab and Enter away from the textarea, which is right
+   * for a grid and wrong for prose.
+   */
+  nextPart?(
+    element: CustomElement<Data>,
+    part: string | null,
+    direction: 'next' | 'previous' | 'up' | 'down',
+  ): string | null;
 
   /**
    * Tab inserts this many spaces instead of moving focus. Code blocks want it;
@@ -115,8 +170,23 @@ export interface ElementPlugin<Data = Record<string, unknown>> {
   /**
    * Build the element(s) to insert. Return several to insert a group.
    * Called with the plugin's own defaults; the core assigns id/seed/version.
+   *
+   * `seed` is whatever InsertDialog confirmed, if the plugin has one.
    */
-  create(context: InsertContext): PluginElementInit<Data> | PluginElementInit<Data>[];
+  create(
+    context: InsertContext,
+    seed?: Partial<Data>,
+  ): PluginElementInit<Data> | PluginElementInit<Data>[];
+
+  /**
+   * Asked before inserting, for elements that need configuring first — a table
+   * cannot sensibly guess how many rows you wanted. Omit it and insertion is
+   * immediate, which is right for almost everything.
+   */
+  InsertDialog?: ComponentType<{
+    onConfirm: (seed: Partial<Data>) => void;
+    onCancel: () => void;
+  }>;
 
   /** Draw it, in element-local space. */
   render(element: CustomElement<Data>, context: RenderContext): void;

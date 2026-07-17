@@ -659,6 +659,8 @@ function drawCustom(
       // plugin reacting to it as well would invert twice.
       dark: ownsDarkMode && dark,
       isEditing: state.editingPluginElementId === element.id,
+      editingPart:
+        state.editingPluginElementId === element.id ? state.editingPluginPart : null,
     });
   } catch (error) {
     // One bad plugin must not take down the frame — every other element on the

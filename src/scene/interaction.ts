@@ -665,6 +665,7 @@ export function attachInteractionHandlers(container: HTMLElement): () => void {
           selectedElementIds: {},
           editingGroupId: null,
           editingPluginElementId: null,
+      editingPluginPart: null,
         });
       }
       activePointerId = event.pointerId;
