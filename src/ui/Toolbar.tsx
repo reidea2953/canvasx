@@ -15,6 +15,7 @@ import {
   LineIcon,
   LockIcon,
   RectangleIcon,
+  SearchIcon,
   SelectionIcon,
   TextIcon,
   UnlockIcon,
@@ -118,6 +119,15 @@ export function Toolbar() {
 
       <span className="toolbar-divider" role="separator" />
       {UTILITY.map(renderTool)}
+
+      <button
+        className="tool"
+        onClick={() => setAppState({ searchOpen: true })}
+        aria-label="Search the canvas"
+        data-tooltip="Search  Ctrl+F"
+      >
+        <SearchIcon />
+      </button>
 
       <span className="toolbar-divider" role="separator" />
       <button

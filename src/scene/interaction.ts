@@ -48,7 +48,8 @@ import {
   getSelectedElements,
   selectElements,
 } from './actions';
-import { broadcastPointer } from '../collab/sync';
+import type { Activity } from '../collab/presence';
+import { broadcastActivity, broadcastPointer } from '../collab/sync';
 import { addLaserPoint } from './laser';
 import { invalidateInteractive, invalidateStatic } from './render';
 import { scene } from './Scene';
@@ -136,6 +137,32 @@ export const getInteraction = (): Interaction => interaction;
  */
 export const getPendingErase = (): Set<string> | null =>
   interaction.kind === 'erasing' ? interaction.pending : null;
+
+/**
+ * What this user is doing, for remote presence.
+ *
+ * Derived from the interaction machine rather than tracked separately — the
+ * machine already IS the answer, and a parallel flag would drift from it.
+ */
+export function currentActivity(): Activity {
+  if (getAppState().editingTextElementId !== null) return 'typing';
+
+  switch (interaction.kind) {
+    case 'drawing':
+    case 'drawingLinear':
+    case 'multiPoint':
+    case 'freedrawing':
+    case 'erasing':
+      return 'drawing';
+    case 'dragging':
+    case 'resizing':
+    case 'rotating':
+    case 'editingPoint':
+      return 'moving';
+    default:
+      return 'idle';
+  }
+}
 
 /** Where the eraser ring is drawn. Null whenever the eraser is not in play. */
 let eraserCursor: ScenePoint | null = null;
@@ -474,6 +501,9 @@ export function attachInteractionHandlers(container: HTMLElement): () => void {
 
   const onPointerDown = (event: PointerEvent) => {
     const state = getAppState();
+    // Report the new activity as soon as the gesture resolves, rather than
+    // waiting for the next mouse move to carry it.
+    queueMicrotask(() => broadcastActivity(currentActivity()));
 
     // Multi-point mode owns the click: each one commits another point.
     if (interaction.kind === 'multiPoint' && event.button === 0) {
@@ -678,7 +708,7 @@ export function attachInteractionHandlers(container: HTMLElement): () => void {
 
     // Presence: throttled inside, and a no-op when not in a room.
     const at = scenePoint(event);
-    broadcastPointer(at.x, at.y);
+    broadcastPointer(at.x, at.y, currentActivity());
 
     // Chrome throttles pointermove to the display rate but buffers the real
     // high-frequency samples (up to 240Hz on a good stylus). Using them costs
@@ -963,6 +993,8 @@ export function attachInteractionHandlers(container: HTMLElement): () => void {
     if (activePointerId !== event.pointerId) return;
     activePointerId = null;
     container.releasePointerCapture(event.pointerId);
+    // Back to idle (or whatever the gesture left behind) for remote peers.
+    queueMicrotask(() => broadcastActivity(currentActivity()));
 
     switch (interaction.kind) {
       case 'panning':

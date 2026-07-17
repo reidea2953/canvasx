@@ -699,6 +699,235 @@ input:focus-visible {
   top: 68px;
 }
 
+/* -------------------------------------------------------------- search */
+
+.search {
+  top: 16px;
+  left: 50%;
+  /* Sits below the toolbar, which owns the top-centre slot. */
+  transform: translateX(-50%) translateY(56px);
+  z-index: 5;
+  width: min(440px, calc(100vw - 32px));
+  padding: 6px;
+  box-shadow: var(--shadow-raised);
+  animation: search-in 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes search-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(48px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search {
+    animation: none;
+  }
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 8px;
+  color: var(--muted);
+}
+
+.search-field > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.search-field input::placeholder {
+  color: var(--muted);
+}
+
+.search-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.search-step {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--icon);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 130ms ease, color 130ms ease;
+}
+
+.search-step:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.search-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.search-results {
+  margin: 6px 0 0;
+  padding: 4px 0 0;
+  list-style: none;
+  /* Roughly seven rows, then scroll — a result list that fills the screen is
+     harder to scan than one you can page through. */
+  max-height: 264px;
+  overflow-y: auto;
+  border-top: 1px solid var(--separator);
+}
+
+.search-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.search-result:hover {
+  background: var(--hover);
+}
+
+.search-result.active {
+  background: var(--accent-bg);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+
+.result-kind {
+  flex: none;
+  min-width: 44px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.result-snippet {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-snippet mark {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 1px;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ presence */
+
+.presence {
+  top: 16px;
+  right: 112px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px 0 8px;
+  border-radius: 11px;
+  background: var(--toolbar);
+  box-shadow: var(--shadow);
+}
+
+.avatars {
+  display: flex;
+}
+
+.avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  /* The ring is the panel colour, so overlapping avatars read as separate. */
+  box-shadow: 0 0 0 2px var(--toolbar);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.avatar + .avatar {
+  margin-left: -7px;
+}
+
+.online-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f9e44;
+  box-shadow: 0 0 0 1.5px var(--toolbar);
+}
+
+.presence-count {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.presence-activity {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+@media (max-width: 900px) {
+  /* The count and activity text are the first things to go. */
+  .presence-count,
+  .presence-activity {
+    display: none;
+  }
+
+  .presence {
+    right: 104px;
+    padding: 0 8px;
+  }
+}
+
 /* --------------------------------------------------------- context menu */
 
 .context-menu {

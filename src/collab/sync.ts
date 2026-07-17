@@ -3,7 +3,14 @@ import type { ExcaliElement } from '../element/types';
 import { invalidateInteractive, invalidateStatic } from '../scene/render';
 import { scene } from '../scene/Scene';
 import { decryptJson, encryptJson, generateRoomKey, importRoomKey } from './crypto';
-import { setRemotePointer, removeRemotePeer, clearRemotePeers } from './presence';
+import { getUserName, peerId } from './identity';
+import {
+  clearRemotePeers,
+  removeRemotePeer,
+  setRemotePointer,
+  type Activity,
+  type PointerUpdate,
+} from './presence';
 
 const SCENE_THROTTLE_MS = 33;
 const POINTER_THROTTLE_MS = 50;
@@ -40,14 +47,14 @@ let reconnectAttempts = 0;
 let reconnectTimer: number | undefined;
 let deliberateClose = false;
 
-const peerId = nanoid(8);
-
 /** Last version we transmitted per element, so we only send real changes. */
 const sentVersions = new Map<string, number>();
 
 let sceneTimer: number | undefined;
 let pointerTimer: number | undefined;
-let pendingPointer: { x: number; y: number } | null = null;
+let pendingPointer: { x: number; y: number; activity: Activity } | null = null;
+/** Last position we know about, so an activity change has somewhere to report from. */
+let lastPointer: { x: number; y: number } | null = null;
 
 const listeners = new Set<(status: CollabStatus) => void>();
 
@@ -126,18 +133,38 @@ function broadcastFullScene(): void {
   void sendEncrypted('scene', { elements: all });
 }
 
-export function broadcastPointer(x: number, y: number): void {
+/**
+ * Trailing-edge throttle: the last position in each window is the only one that
+ * matters, so intermediate samples are dropped rather than queued. Cursors are
+ * smoothed on the receiving end, which is what lets this be as slow as 20Hz
+ * without looking like it.
+ */
+export function broadcastPointer(x: number, y: number, activity: Activity): void {
   if (status !== 'connected') return;
-  pendingPointer = { x, y };
+  lastPointer = { x, y };
+  pendingPointer = { x, y, activity };
   if (pointerTimer !== undefined) return;
 
   pointerTimer = window.setTimeout(() => {
     pointerTimer = undefined;
-    if (pendingPointer) {
-      void sendEncrypted('pointer', pendingPointer);
-      pendingPointer = null;
-    }
+    if (!pendingPointer) return;
+    void sendEncrypted('pointer', { ...pendingPointer, name: getUserName() });
+    pendingPointer = null;
   }, POINTER_THROTTLE_MS);
+}
+
+/**
+ * Push presence immediately, bypassing the pointer throttle.
+ *
+ * Activity changes are rare and meaningful — "started typing" is worth a packet
+ * of its own, and waiting for the next mouse move to report it means the badge
+ * never appears for someone who is typing without moving the mouse.
+ */
+export function broadcastActivity(activity: Activity): void {
+  if (status !== 'connected') return;
+  const at = pendingPointer ?? lastPointer;
+  if (!at) return;
+  void sendEncrypted('pointer', { x: at.x, y: at.y, activity, name: getUserName() });
 }
 
 function mergeRemote(elements: ExcaliElement[]): void {
@@ -233,9 +260,14 @@ async function connect(room: RoomLink): Promise<void> {
 
       case 'pointer': {
         if (!roomKey || typeof message.data !== 'string') return;
-        const payload = await decryptJson<{ x: number; y: number }>(roomKey, message.data);
-        if (payload && typeof message.peerId === 'string') {
-          setRemotePointer(message.peerId, payload.x, payload.y);
+        const payload = await decryptJson<PointerUpdate>(roomKey, message.data);
+        if (payload && typeof message.peerId === 'string' && message.peerId !== peerId) {
+          setRemotePointer(message.peerId, {
+            x: payload.x,
+            y: payload.y,
+            name: payload.name || 'Anonymous',
+            activity: payload.activity ?? 'idle',
+          });
         }
         return;
       }

@@ -142,6 +142,8 @@ function reviveElement(raw: Partial<ExcaliElement>): ExcaliElement | null {
       ...base,
       type: 'image',
       fileId: image.fileId,
+      // Files written before fileName existed simply have none.
+      fileName: image.fileName ?? '',
       scale: Array.isArray(image.scale) ? [image.scale[0], image.scale[1]] : [1, 1],
       // Bitmaps are re-decoded from IndexedDB after restore, so start pending.
       status: 'pending',

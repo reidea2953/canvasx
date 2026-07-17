@@ -46,6 +46,10 @@ draws from centre or duplicate-drags, `Ctrl` resizes from centre.
 Double-click: empty canvas → text · a shape → label inside it · a line/arrow → point
 editor · a group → drill in.
 
+`Ctrl+F` searches the canvas: text, shape labels, image filenames, element links and
+shape type names. `Enter` / `Shift+Enter` step through matches, each one zooming to
+centre and flashing.
+
 Images arrive by toolbar button, drag-and-drop or paste — PNG, JPG, SVG, WebP, GIF,
 AVIF — and are ordinary elements, so they move, resize, rotate and layer like anything
 else.
@@ -138,6 +142,24 @@ comparison and converge on the same answer with no round trip. The relay
 ([server/index.js](server/index.js)) only sees ciphertext: the room key lives in the URL
 fragment, which browsers never transmit.
 
+Only changed elements go on the wire — `sentVersions` tracks what each element's version
+was when last sent, so a drag that mutates one shape sends one shape. Scene diffs are
+throttled to ~30/s and pointers to ~20/s; activity changes ("started typing") bypass the
+pointer throttle, because they are rare, meaningful, and would otherwise wait for a mouse
+move that may never come.
+
+**Remote cursors are interpolated, not snapped** ([presence.ts](src/collab/presence.ts)).
+Pointers arrive at ~20Hz to keep traffic down, and a cursor that teleports 20 times a
+second reads as broken. Easing toward the last reported position each frame turns the same
+packets into smooth motion for free — the network cost of smoothness is zero.
+
+**Search extracts once, matches many times** ([search/index.ts](src/search/index.ts)).
+Matching is not the cost — a lowercase substring test over 10,000 short strings is ~1ms.
+*Extraction* is: reaching into containers for bound labels, normalizing case, joining
+fields. So extraction is cached per element by `version`, exactly like the rough
+drawables, and a keystroke costs one linear scan over pre-computed strings. Measured at
+**1.6ms per keystroke over 10,000 elements**.
+
 ## Verified
 
 ```bash
@@ -156,6 +178,7 @@ modules, asserting properties of the maths rather than of a fixture.
 | PNG round-trips its embedded scene | CRCs intact, payload byte-identical |
 | Merge rule converges regardless of arrival order | 0 divergent of 200,000 pairs; 0 order-dependent of 20,000 sets |
 | Selection box hit test is correct when rotated | 0 errors either way over 100,000 cases |
+| Search finds the right things, fast | correctness + `1.6ms` per keystroke over 10,000 elements |
 
 Two of these caught real bugs rather than merely confirming what was already true:
 
@@ -190,8 +213,30 @@ Honest gaps against [build.md](build.md):
 - **SVG font subsetting** (spec §10.2) — exports embed the full latin subset (~85KB)
   rather than only the glyphs used. Needs a tool like `glyphhanger`.
 - **Binding gap is a constant 4** rather than measured at bind time.
-- **Delta-based history** (spec §9) — history is snapshot-based and does not merge with
-  remote edits, so undo in a live session is local-only.
+- **Undo/redo is not synchronised** across a live session, and this is the one gap that
+  needs real work rather than a small addition. History is snapshot-based: undo restores
+  a copy of the whole scene, which in a room would stamp your snapshot over everyone
+  else's concurrent edits. Doing it properly means delta-based history (store the inverse
+  patch per entry) so an undo becomes an ordinary element change that merges like any
+  other. The spec calls this out in §9.
+
+## Why not a CRDT
+
+The obvious question, since Yjs exists. The current model is last-write-wins per element,
+keyed by `version` / `versionNonce` — the same approach Excalidraw itself uses.
+
+A CRDT would buy character-level text merging (two people typing in one label), offline
+editing, and no lost update when two peers change *different properties of the same
+element* at once. Those are real wins.
+
+What it would cost: the element store, history, persistence and the file format all
+assume plain mutable objects, and every one would have to be rebuilt on Y.Map/Y.Array.
+That is a rewrite of the core with a large regression surface, in exchange for edge cases
+that a whiteboard hits rarely — people mostly edit *different* elements.
+
+So: not now, and the reasoning is written down rather than assumed. If character-level
+text merging or offline support becomes a requirement, the seam to cut at is `Scene` plus
+`mergeRemote`, since nothing outside those two knows how elements arrive.
 
 Two deliberate departures from the spec, rather than omissions:
 

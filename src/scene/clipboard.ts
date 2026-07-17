@@ -38,7 +38,14 @@ export async function insertImage(
   viewport: { width: number; height: number },
 ): Promise<void> {
   const { fileId, bitmap } = await storeFile(blob);
-  const element = newImageElement(fileId, imageGeometry(bitmap, at, viewport, getAppState().zoom));
+  // A File carries a name; a pasted Blob does not. Kept only so search can
+  // find the image later.
+  const fileName = blob instanceof File ? blob.name : '';
+  const element = newImageElement(
+    fileId,
+    imageGeometry(bitmap, at, viewport, getAppState().zoom),
+    fileName,
+  );
   scene.add(element);
   selectElements([element]);
   invalidateStatic();

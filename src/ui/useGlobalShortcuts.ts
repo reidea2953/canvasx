@@ -54,6 +54,12 @@ export function useGlobalShortcuts(): void {
 
       if (modifier) {
         switch (key) {
+          case 'f':
+            // Take Ctrl+F from the browser: our canvas text is painted pixels,
+            // so the native find bar can never see any of it.
+            event.preventDefault();
+            setAppState({ searchOpen: true });
+            return;
           case 'z':
             event.preventDefault();
             event.shiftKey ? redo() : undo();

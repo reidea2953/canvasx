@@ -198,6 +198,7 @@ export function newTextElement(
 export function newImageElement(
   fileId: string,
   geometry: NewElementGeometry,
+  fileName = '',
 ): ImageElement {
   const state = getAppState();
   return {
@@ -227,6 +228,7 @@ export function newImageElement(
     link: null,
 
     fileId,
+    fileName,
     scale: [1, 1],
     status: 'saved',
   };

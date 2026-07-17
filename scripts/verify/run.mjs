@@ -24,6 +24,7 @@ const CHECKS = [
   ['png', 'PNG round-trips its embedded scene'],
   ['merge', 'collab merge converges regardless of arrival order'],
   ['selectbox', 'selection box hit test is correct when rotated'],
+  ['search', 'canvas search finds the right things, fast'],
 ];
 
 const outDir = mkdtempSync(join(tmpdir(), 'verify-'));

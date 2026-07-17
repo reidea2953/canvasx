@@ -56,6 +56,7 @@ export interface AppState {
   objectsSnapModeEnabled: boolean;
   theme: 'light' | 'dark';
   statsOpen: boolean;
+  searchOpen: boolean;
 }
 
 const initialState: AppState = {
@@ -90,6 +91,7 @@ const initialState: AppState = {
   objectsSnapModeEnabled: false,
   theme: 'light',
   statsOpen: false,
+  searchOpen: false,
 };
 
 export const appStore = createStore<AppState>()(() => initialState);

@@ -5,6 +5,8 @@ import { CanvasOptions } from './ui/CanvasOptions';
 import { ContextMenu } from './ui/ContextMenu';
 import { DevPanel } from './ui/DevPanel';
 import { MainMenu } from './ui/MainMenu';
+import { PresenceBar } from './ui/PresenceBar';
+import { SearchPanel } from './ui/SearchPanel';
 import { ShareButton } from './ui/ShareButton';
 import { StatsPanel } from './ui/StatsPanel';
 import { StylePanel } from './ui/StylePanel';
@@ -23,7 +25,9 @@ export function App() {
       <TextEditor />
       <Toolbar />
       <MainMenu />
+      <PresenceBar />
       <ShareButton />
+      <SearchPanel />
       <div className="left-rail">
         <StylePanel />
         <Actions />

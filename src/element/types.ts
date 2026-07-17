@@ -127,6 +127,11 @@ export interface ImageElement extends BaseElement {
   type: 'image';
   /** Key into the IndexedDB blob store. Never inline base64 — see scene/files.ts. */
   fileId: string;
+  /**
+   * The name it arrived with. Carried purely so the image is findable by name —
+   * nothing renders it. Empty for a pasted image, which has no filename.
+   */
+  fileName: string;
   /** [-1,1] etc. for flips. */
   scale: [number, number];
   status: 'pending' | 'saved' | 'error';

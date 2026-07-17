@@ -13,9 +13,10 @@ import {
   type ImageElement,
   type TextElement,
 } from '../element/types';
-import { drawRemoteCursors } from '../collab/presence';
+import { drawRemoteCursors, remoteCursorsAnimating } from '../collab/presence';
 import { getBitmap } from './files';
 import { getFreedrawPath } from './freedraw';
+import { drawHighlights, hasHighlights } from './highlight';
 import { drawLaser, laserHasTrail } from './laser';
 import { getAppState } from '../state/store';
 import { getVisibleSceneBounds } from '../utils/coords';
@@ -132,9 +133,10 @@ function frame(now: number): void {
 
   inFrame = false;
 
-  // Keeps the loop alive while the laser tail fades, even though nothing else
-  // is dirty — otherwise the trail freezes the moment the pointer stops.
-  if (laserHasTrail()) invalidateInteractive();
+  // Keep the loop alive while anything is animating on its own clock, even
+  // though nothing else is dirty — otherwise the laser tail freezes the moment
+  // the pointer stops, and search flashes never fade.
+  if (laserHasTrail() || hasHighlights() || remoteCursorsAnimating()) invalidateInteractive();
 
   frameTimes.push(now);
   while (frameTimes.length > 0 && now - frameTimes[0] > 1000) frameTimes.shift();
@@ -301,10 +303,11 @@ function renderInteractive(layer: Layer, now: number): void {
   }
 
   drawEraserRing(layer.ctx, state.zoom);
+  drawHighlights(layer.ctx, now, state.zoom);
 
   // Last, so the beam and remote cursors sit above everything else.
   drawLaser(layer.ctx, now, state.zoom);
-  drawRemoteCursors(layer.ctx, state.zoom);
+  drawRemoteCursors(layer.ctx, now, state.zoom);
 }
 
 /**
