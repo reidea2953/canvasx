@@ -1,0 +1,27 @@
+name = "canvasx"
+main = "worker/index.ts"
+compatibility_date = "2025-07-01"
+
+# The built app. run_worker_first routes /ws to the Worker; everything else is
+# served straight from the asset store, which never wakes the Worker at all.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = ["/ws"]
+
+# One Durable Object per room. A relay must hold connections open and broadcast
+# between them, which a stateless Worker cannot do — see worker/RelayRoom.ts.
+[[durable_objects.bindings]]
+name = "RELAY_ROOM"
+class_name = "RelayRoom"
+
+# new_sqlite_classes, not new_classes: SQLite-backed Durable Objects are the ones
+# available on the Workers free plan. The room keeps no state on disk — its
+# sockets live in memory — but the backend choice is fixed at creation and cannot
+# be changed later, so it is worth getting right the first time.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelayRoom"]
+
+[observability]
+enabled = true

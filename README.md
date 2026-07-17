@@ -21,6 +21,7 @@ npm run dev          # http://localhost:5173
 npm run server       # ws://localhost:3002 — only for live collaboration
 
 npm run check        # typecheck + verify + build — run before pushing
+npm run deploy       # check, then ship to Cloudflare
 ```
 
 ---
@@ -206,9 +207,14 @@ changes.
 
 **No server authority** ([sync.ts](src/collab/sync.ts)). Higher `version` wins; on a
 tie, lower `versionNonce` wins. Both peers run the identical comparison and converge
-on the same answer with no round trip. The relay ([server/index.js](server/index.js))
-only sees ciphertext: the room key lives in the URL fragment, which browsers never
-transmit.
+on the same answer with no round trip. The relay only sees ciphertext: the room key
+lives in the URL fragment, which browsers never transmit.
+
+There are two relays, because they answer to different constraints. In development it
+is [server/index.js](server/index.js) — Node and `ws`, no account and no build step.
+Deployed it is a Durable Object ([worker/RelayRoom.ts](worker/RelayRoom.ts)); see
+[Deploying](#deploying) for why that is a port rather than a copy. Both speak the same
+protocol, and the client picks by origin rather than by configuration.
 
 Only changed elements go on the wire — `sentVersions` tracks each element's version
 when last sent, so a drag that mutates one shape sends one shape. Scene diffs are
@@ -229,6 +235,53 @@ is not the cost — a lowercase substring test over 10,000 short strings is ~1ms
 fields. So extraction is cached per element by `version`, exactly like the rough
 drawables, and a keystroke costs one linear scan over pre-computed strings. Measured
 at **1.6ms per keystroke over 10,000 elements**.
+
+---
+
+## Deploying
+
+Cloudflare, as one Worker serving both the app and the relay.
+
+```bash
+npx wrangler login   # once — browser OAuth
+npm run deploy       # check, then wrangler deploy
+```
+
+That publishes to `canvasx.<your-subdomain>.workers.dev`. Configuration is
+[wrangler.toml](wrangler.toml); it needs no secrets, because there are none — the
+room key never reaches the server.
+
+**One origin, not two.** [worker/index.ts](worker/index.ts) routes `/ws` to the relay
+and everything else to the static build. That is not tidiness. Same origin means the
+WebSocket needs no CORS, the room link is the URL you are already on, and HTTPS makes
+the page a secure context — which is what Web Crypto requires, and therefore what the
+end-to-end encryption requires. Split across two hosts, each of those becomes a thing
+to configure and get wrong. Static assets are served without waking the Worker at all.
+
+**The relay is a Durable Object, and had to be rewritten to become one.** A relay
+holds many connections open and broadcasts between them — the one thing a stateless
+Worker cannot do. A Durable Object is a single addressable instance with its own
+memory, so one room maps to one object and "everyone else in the room" is just its
+socket list. `idFromName(room)` is a pure hash, so every peer on a link independently
+addresses the same instance: no lookup table, no coordination. Sockets are accepted
+with hibernation, so an idle room can be evicted from memory while its connections
+stay open — a whiteboard is idle almost all the time, and without it you pay to keep
+empty rooms resident.
+
+**Why SQLite-backed.** The migration in `wrangler.toml` says `new_sqlite_classes`
+rather than `new_classes`. The room persists nothing — its sockets live in memory —
+but SQLite-backed objects are the ones available on the free plan, and the storage
+backend is fixed at creation and cannot be changed afterwards.
+
+```bash
+npm run verify:relay
+```
+
+Boots the real Workers runtime and drives it with real WebSockets: two peers in a
+room, one in another, join counts, verbatim ciphertext relay, no echo to the sender,
+`peer-left` identity, junk tolerance, and the app served from the same origin. It sits
+outside `npm run verify` because it needs a built `dist/` and a few seconds to boot a
+server; that suite is pure and instant and worth keeping so.
 
 ---
 

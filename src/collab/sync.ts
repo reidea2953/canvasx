@@ -84,11 +84,29 @@ export function parseRoomFromHash(): RoomLink | null {
 
 // -------------------------------------------------------------- transport
 
-const serverUrl = (): string => {
-  const configured = import.meta.env.VITE_COLLAB_URL as string | undefined;
-  if (configured) return configured;
+/**
+ * Where the relay lives.
+ *
+ * In production the Worker serves both the app and the relay, so it is the same
+ * origin at /ws — no CORS, no second host, no port. In dev it is the standalone
+ * Node relay on 3002, because Vite serves the app and knows nothing about
+ * WebSockets.
+ *
+ * The room is in the query rather than only in the join message: the Worker
+ * routes to one Durable Object per room, and has to know which before the
+ * socket is even accepted.
+ */
+const serverUrl = (roomId: string): string => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.hostname}:3002`;
+  const configured = import.meta.env.VITE_COLLAB_URL as string | undefined;
+
+  const base =
+    configured ??
+    (import.meta.env.DEV
+      ? `${protocol}//${window.location.hostname}:3002`
+      : `${protocol}//${window.location.host}/ws`);
+
+  return `${base}?room=${encodeURIComponent(roomId)}`;
 };
 
 async function send(message: Record<string, unknown>): Promise<void> {
@@ -221,7 +239,7 @@ async function connect(room: RoomLink): Promise<void> {
     return;
   }
 
-  const ws = new WebSocket(serverUrl());
+  const ws = new WebSocket(serverUrl(room.roomId));
   socket = ws;
 
   ws.addEventListener('open', () => {

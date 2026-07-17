@@ -28,3 +28,7 @@ pnpm-debug.log*
 # Vite / TS caches
 .vite/
 *.tsbuildinfo
+
+# Wrangler's local state: the simulated Durable Object storage and build cache
+# that `wrangler dev` writes.
+.wrangler/
